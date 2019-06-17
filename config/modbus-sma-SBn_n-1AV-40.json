@@ -1,0 +1,38 @@
+{ "registers" : [
+  {
+    "number": 30051,
+    "description": "Device class",
+    "type": "U32",
+    "format": "ENUM"
+  },
+  {
+    "number": 30053,
+    "description": "Device type",
+    "type": "U32",
+    "format": "ENUM"
+  },
+  {
+    "number": 30769,
+    "description": "DC current input (A)",
+    "type": "S32",
+    "format": "FIX3"
+  },
+  {
+    "number": 30771,
+    "description": "DC voltage input (V)",
+    "type": "S32",
+    "format": "FIX2"
+  },
+  {
+    "number": 30773,
+    "description": "DC power input (W)",
+    "type": "S32",
+    "format": "FIX0"
+  },
+  {
+    "number": 30775,
+    "description": "Power output (W)",
+    "type": "S32",
+    "format": "FIX0"
+  }
+]}
