@@ -81,51 +81,62 @@ def load_sma_register(inverter_client, inverter_slave, mod_bus_config):
             received = inverter_client.read_input_registers(address=register_id,
                                                             count=sma_mod_data_type[register_type],
                                                             unit=inverter_slave)
-        except:
+        except Exception as err:
             this_date = str(datetime.datetime.now()).partition('.')[0]
             this_error_message = this_date + ': Connection not possible. Check settings or connection.'
             print(this_error_message)
-            return  ## prevent further execution of this function
+            return register_data
 
-        message = BinaryPayloadDecoder.fromRegisters(received.registers, byteorder=Endian.Big)
-        # provide the correct result depending on the defined datatype
-        if register_type in ['S32','U32']:
-            interpreted = message.decode_32bit_int()
-        elif register_type == 'U64':
-            interpreted = message.decode_64bit_uint()
-        elif register_type == 'STR16':
-            interpreted = message.decode_string(16)
-        elif register_type == 'STR32':
-            interpreted = message.decode_string(32)
-        else:
-            interpreted = message.decode_16bit_uint()
-
-        # check for "None" data before doing anything else
-        if (interpreted == MIN_SIGNED) or (interpreted == MAX_UNSIGNED):
-            display_data = None
-        else:
-            # put the data with correct formatting into the data table
-            if register_format == 'FIX3':
-                display_data = float(interpreted) / 1000
-            elif register_format == 'FIX2':
-                display_data = float(interpreted) / 100
-            elif register_format == 'FIX1':
-                display_data = float(interpreted) / 10
-            elif register_format == 'UTF8':
-                display_data = str(interpreted)
+        try:
+            message = BinaryPayloadDecoder.fromRegisters(received.registers, byteorder=Endian.Big)
+            # provide the correct result depending on the defined datatype
+            if register_type in ['S32','U32']:
+                interpreted = message.decode_32bit_int()
+            elif register_type == 'U64':
+                interpreted = message.decode_64bit_uint()
+            elif register_type == 'STR16':
+                interpreted = message.decode_string(16)
+            elif register_type == 'STR32':
+                interpreted = message.decode_string(32)
             else:
-                display_data = interpreted
+                interpreted = message.decode_16bit_uint()
 
-        register_data[name] = display_data
+            # check for "None" data before doing anything else
+            if (interpreted == MIN_SIGNED) or (interpreted == MAX_UNSIGNED):
+                display_data = None
+            else:
+                # put the data with correct formatting into the data table
+                if register_format == 'FIX3':
+                    display_data = float(interpreted) / 1000
+                elif register_format == 'FIX2':
+                    display_data = float(interpreted) / 100
+                elif register_format == 'FIX1':
+                    display_data = float(interpreted) / 10
+                elif register_format == 'UTF8':
+                    display_data = str(interpreted)
+                else:
+                    display_data = interpreted
 
-    # Add timestamp
-    register_data["Timestamp"] = str(datetime.datetime.now()).partition('.')[0]
-    return register_data
+            register_data[name] = display_data
+
+            # Add timestamp
+            register_data["Timestamp"] = str(datetime.datetime.now()).partition('.')[0]
+            return register_data
+
+        except Exception as err:
+            this_date = str(datetime.datetime.now()).partition('.')[0]
+            this_error_message = this_date + ': Unable to process response data.'
+            print(this_error_message)
+            return register_data
+
 
 
 def publish_influx(metrics):
-    flux_client.write_points([metrics])
-    print("[INFO] Sent to InfluxDB")
+    try:
+        flux_client.write_points([metrics])
+        print("[INFO] Sent to InfluxDB")
+    except Exception as err:
+        print(f"[ERROR] Could not send to InfluxDB.  {err}")
 
 
 while True:
@@ -160,4 +171,4 @@ while True:
     except Exception as err:
         print("[ERROR] %s" % err)
 
-    time.sleep(10)
+    time.sleep(15)
