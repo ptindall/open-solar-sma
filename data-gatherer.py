@@ -121,14 +121,13 @@ def load_sma_register(inverter_client, inverter_slave, mod_bus_config):
 
             # Add timestamp
             register_data["Timestamp"] = str(datetime.datetime.now()).partition('.')[0]
-            return register_data
 
         except Exception as err:
             this_date = str(datetime.datetime.now()).partition('.')[0]
             this_error_message = this_date + ': Unable to process response data.'
             print(this_error_message)
-            return register_data
 
+    return register_data
 
 
 def publish_influx(metrics):
