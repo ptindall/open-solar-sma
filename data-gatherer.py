@@ -2,7 +2,11 @@
 # -*- coding: utf-8 -*-
 
 from pymodbus.client.sync import ModbusTcpClient
-from influxdb import InfluxDBClient
+
+import influxdb_client
+from influxdb_client.client.write_api import SYNCHRONOUS
+from influxdb_client import Point
+
 import json
 import time
 import requests
@@ -54,16 +58,14 @@ for array in configuration["arrays"]:
         "mod_bus_config": mod_bus_config
     })
 
-print("Connecting to influx")
-flux_client = InfluxDBClient(configuration['influx']['host'],
-                             configuration['influx']['port'],
-                             configuration['influx']['user'],
-                             configuration['influx']['password'],
-                             configuration['influx']['database'],
-                             ssl=configuration['influx']['ssl'],
-                             verify_ssl=configuration['influx']['verify_ssl'])
+# print("Connecting to influx")
+flux_client = influxdb_client.InfluxDBClient(
+    url=configuration['influx']['host'],
+    token=configuration['influx']['token'],
+    org=configuration['influx']['org'])
 
 weather_url = f"http://api.openweathermap.org/data/2.5/weather?zip={configuration['location']['zip']},{configuration['location']['country']}&units=imperial&APPID={configuration['weather_api_key']}"
+
 
 def load_sma_register(inverter_client, inverter_slave, mod_bus_config):
     register_data = {}
@@ -130,9 +132,12 @@ def load_sma_register(inverter_client, inverter_slave, mod_bus_config):
     return register_data
 
 
-def publish_influx(metrics):
+def publish_influx(record):
+    bucket = configuration['influx']['bucket']
+    org = configuration['influx']['org']
+    write_api = flux_client.write_api(write_options=SYNCHRONOUS)
     try:
-        flux_client.write_points([metrics])
+        write_api.write(bucket=bucket, org=org, record=record)
         print("[INFO] Sent to InfluxDB")
     except Exception as err:
         print(f"[ERROR] Could not send to InfluxDB.  {err}")
@@ -153,6 +158,7 @@ while True:
         for array in arrays:
             registers = load_sma_register(array['inverter_client'], array['inverter_slave'], array['mod_bus_config'])
 
+            registers["Array Name"] = array['array_name']
             registers["Cloudiness (%)"] = cloudiness
             registers["Temperature (F)"] = temperature
             registers["Location type"] = configuration['location']['type']
@@ -162,12 +168,23 @@ while True:
             tags = {}
             fields = {}
             metrics['measurement'] = array['array_name']
-            tags['location'] = configuration['location']['address_one']
-            metrics['tags'] = tags
-            metrics['fields'] = registers
-            publish_influx(metrics)
+
+            point = (
+                Point("measurement-" + array['array_name'])
+                .tag("location", configuration['location']['address_one'])
+                .field("Cloudiness (%)", cloudiness)
+                .field("Temperature (F)", temperature)
+                .field("Location type", configuration['location']['type'])
+                .field("Array Name", array['array_name'])
+                .field("Timestamp", registers["Timestamp"])
+                .field("Power output (W)", registers["Power output (W)"])
+                .field("DC current input (A)", registers["DC current input (A)"])
+                .field("DC voltage input (V)", registers["DC voltage input (V)"])
+                .field("DC power input (W)", registers["DC power input (W)"])
+            )
+            publish_influx(point)
 
     except Exception as err:
         print("[ERROR] %s" % err)
 
-    time.sleep(15)
+    time.sleep(60)
